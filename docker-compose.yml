@@ -1,0 +1,169 @@
+version: '3.4'
+name: FiapPostTechDocker
+services:
+  
+# Banco de dados
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    ports:
+      - "1433:1433"
+    # mem_limit: 3072M
+    environment:
+      SA_PASSWORD: "huaHhbSyjn9bttt"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - sql_data:/var/opt/mssql
+    networks:
+      - postech-network
+
+  # Prometheus para coleta de métricas
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - postech-network
+
+  # Grafana para visualização de dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - postech-network
+
+  # Gateway 
+  kong-database:
+    image: postgres:11.16
+    container_name: kong-database
+    restart: always
+    environment:
+      - POSTGRES_USER=${KONG_DB_USERNAME}
+      - POSTGRES_PASSWORD=${KONG_DB_PASSWORD}
+      - POSTGRES_DB=${KONG_DB_NAME}
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - kong_pgdata:/var/lib/postgresql/data
+    networks:
+       - postech-network 
+
+  kong-migrations:
+    image: kong:3.4
+    entrypoint: "kong migrations bootstrap"
+    environment:
+      - KONG_DATABASE=${KONG_DATABASE}
+      - KONG_PG_HOST=${KONG_DB_HOST}
+      - KONG_PG_DATABASE=${KONG_DB_NAME}
+      - KONG_PG_USER=${KONG_DB_USERNAME}
+      - KONG_PG_PASSWORD=${KONG_DB_PASSWORD}
+    restart: on-failure
+    links:
+      - kong-database
+    networks:
+       - postech-network 
+    depends_on:
+      - kong-database
+    
+  kong:
+    image: kong:3.4
+    environment:
+      - KONG_DATABASE=${KONG_DATABASE}
+      - KONG_PG_HOST=${KONG_DB_HOST}
+      - KONG_PG_DATABASE=${KONG_DB_NAME}
+      - KONG_PG_USER=${KONG_DB_USERNAME}
+      - KONG_PG_PASSWORD=${KONG_DB_PASSWORD}
+      - KONG_LOG_LEVEL=${KONG_LOG_LEVEL}
+      - KONG_PROXY_ACCESS_LOG=${KONG_PROXY_ACCESS_LOG}
+      - KONG_ADMIN_ACCESS_LOG=${KONG_ADMIN_ACCESS_LOG}
+      - KONG_PROXY_ERROR_LOG=${KONG_PROXY_ERROR_LOG}
+      - KONG_ADMIN_ERROR_LOG=${KONG_ADMIN_ERROR_LOG}
+      - KONG_ADMIN_LISTEN=${KONG_ADMIN_LISTEN}
+      - KONG_ADMIN_GUI_URL=${KONG_ADMIN_GUI_URL}
+    restart: always
+    links:
+      - kong-database
+    ports:
+      - ${KONG_PROXY_PORT}:${KONG_PROXY_PORT}
+      - ${KONG_PROXY_SSL_PORT}:${KONG_PROXY_SSL_PORT}
+      - ${KONG_PROXY_ADMIN_API_PORT}:${KONG_PROXY_ADMIN_API_PORT}
+      - ${KONG_PROXY_ADMIN_SSL_API_PORT}:${KONG_PROXY_ADMIN_SSL_API_PORT}
+      - ${KONG_MANAGER_PORT}:${KONG_MANAGER_PORT}
+      - ${KONG_MANAGER_SSL_PORT}:${KONG_MANAGER_SSL_PORT}
+      - ${KONG_3_PORT}:${KONG_3_PORT}
+      - ${KONG_4_PORT}:${KONG_4_PORT}
+    networks:
+      - postech-network 
+    depends_on:
+      - kong-database
+      - kong-migrations
+  konga-prepare:
+    image: pantsel/konga:latest
+    command: "-c prepare -a postgres -u postgresql://kong:kong@kong-database:5432/konga"
+    restart: on-failure
+    links:
+      - kong-database
+    networks:
+      - postech-network 
+    depends_on:
+      - kong-database
+      - kong-migrations
+      - kong
+  konga:
+    image: pantsel/konga:latest
+    environment:
+      - TOKEN_SECRET=${KONGA_TOKEN_SECRET}
+      - DB_ADAPTER=${KONG_DATABASE}
+      - DB_HOST=${KONG_DB_HOST}
+      - DB_PORT=${KONG_DB_PORT}
+      - DB_DATABASE=${KONGA_DB_NAME}
+      - DB_USER=${KONG_DB_USERNAME}
+      - DB_PASSWORD=${KONG_DB_PASSWORD}
+      - NODE_ENV=${KONGA_ENV}
+    restart: always
+    links:
+      - kong-database
+    ports:
+      - ${KONGA_PORT}:${KONGA_PORT}
+    networks:
+      - postech-network 
+    depends_on:
+      - kong-database
+      - kong-migrations
+      - kong
+      - konga-prepare
+
+volumes:
+  sql_data:
+  prometheus_data:
+  grafana_data:
+  kong_pgdata:
+  
+networks:
+  postech-network:
+    external: true
