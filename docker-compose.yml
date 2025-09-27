@@ -1,5 +1,5 @@
 version: '3.4'
-name: FiapPostTechDocker
+name: FiapDocker
 services:
   
 # Banco de dados
@@ -157,7 +157,39 @@ services:
       - kong-migrations
       - kong
       - konga-prepare
-
+      
+  #RabbitMq
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"   # porta de conexão dos apps
+      - "15672:15672" # porta da UI (http://localhost:15672)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - postech-network
+      
+   # SonarQube   
+  sonarqube:
+    image: sonarqube:latest
+    container_name: sonarqube
+    ports:
+      - "9000:9000"       # Porta web do SonarQube
+      - "9092:9092"       # Porta para sonar scanner (opcional)
+    # environment:
+      # - SONAR_JDBC_USERNAME=sonar
+      # - SONAR_JDBC_PASSWORD=sonar
+      # - SONAR_JDBC_URL=jdbc:postgresql://db:5432/sonar
+      # - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true  # Para evitar erro de memória
+    # depends_on:
+      # - db
+    networks:
+      - postech-network
+    restart: unless-stopped
+      
+      
 volumes:
   sql_data:
   prometheus_data:
