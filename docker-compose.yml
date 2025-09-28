@@ -188,13 +188,50 @@ services:
     networks:
       - postech-network
     restart: unless-stopped
-      
-      
+
+  # Elasticsearch para busca avançada de jogos
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.4
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - postech-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=10s || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Kibana para visualização do Elasticsearch  
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.10.4
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - postech-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
 volumes:
   sql_data:
   prometheus_data:
   grafana_data:
   kong_pgdata:
+  elasticsearch_data:
   
 networks:
   postech-network:
