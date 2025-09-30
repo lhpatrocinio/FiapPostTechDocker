@@ -1,0 +1,115 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "FIAP Microservices Overview",
+    "description": "Visão geral dos microsserviços da FIAP Tech Challenge Fase 3",
+    "tags": ["fiap", "microservices", "dotnet"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Services Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=~\"fiap-.*\"}",
+            "legendFormat": "{{service}} - {{job}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "mappings": [
+              {"options": {"0": {"text": "DOWN"}}, "type": "value"},
+              {"options": {"1": {"text": "UP"}}, "type": "value"}
+            ]
+          }
+        },
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "HTTP Requests Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=~\"fiap-.*\"}[5m])",
+            "legendFormat": "{{service}} - {{method}} {{endpoint}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Requests/sec", "show": true},
+          {"show": true}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6}
+      },
+      {
+        "id": 3,
+        "title": "Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~\"fiap-.*\"}[5m]))",
+            "legendFormat": "{{service}} - 95th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=~\"fiap-.*\"}[5m]))",
+            "legendFormat": "{{service}} - 50th percentile",
+            "refId": "B"
+          }
+        ],
+        "yAxes": [
+          {"label": "Seconds", "show": true},
+          {"show": true}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}
+      },
+      {
+        "id": 4,
+        "title": ".NET Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "dotnet_collection_count_total{job=~\"fiap-.*\"}",
+            "legendFormat": "{{service}} - GC Gen{{generation}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Collections", "show": true},
+          {"show": true}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14}
+      },
+      {
+        "id": 5,
+        "title": "Thread Pool",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "dotnet_threadpool_num_threads{job=~\"fiap-.*\"}",
+            "legendFormat": "{{service}} - Threads",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Threads", "show": true},
+          {"show": true}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14}
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "refresh": "30s"
+  }
+}
